@@ -42,7 +42,7 @@ namespace NfcDotNet.LibCrapto1
 		    return (byte)(0xEC57E80A >> (int)f & 1);
 	    }
 
-        public static uint ToUInt32(byte[] a, int offset)
+        public static uint ToUInt32(byte[] a, int offset = 0)
         {
             uint result = 0;
             for (int i = 0; i < 4; i++)

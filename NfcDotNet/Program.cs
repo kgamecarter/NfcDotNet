@@ -241,14 +241,14 @@ namespace NfcDotNet
             // 自己控制 Parity bit
             device.DeviceSetPropertyBool(NfcProperty.HandleParity, false);
 
-            var nt = Crapto1Func.ToUInt32(abtRx, 0);
-            var uid = Crapto1Func.ToUInt32(abtRawUid, 0);
+            var nt = Crapto1Func.ToUInt32(abtRx);
+            var uid = Crapto1Func.ToUInt32(abtRawUid);
             Console.Write("           Nt: ");
             PrintHex(abtRx, 4);
             using (var crapto1 = new Crapto1(0xFFFFFFFFFFFFu))
             {
                 // 初始化 crapto1 狀態 feed in uid^nt and drop keystream in the first round
-                crapto1.Crypto1Word(uid ^ nt, false);
+                crapto1.Crypto1Word(uid ^ nt);
                 // 自訂讀卡機端nonce
                 var nr = 0x01020304u;
                 // Ar 為 suc2(nt)
@@ -261,7 +261,7 @@ namespace NfcDotNet
                     // 計算 Parity
                     enNrArParity[i] = Parity.OddParity8(enNrAr[i]);
                     // 加密, 0~3是Nr要帶入Crypto1位移
-                    enNrAr[i] ^= crapto1.Crypto1Byte(i < 4 ? enNrAr[i] : (byte)0, false);
+                    enNrAr[i] ^= crapto1.Crypto1Byte(i < 4 ? enNrAr[i] : (byte)0);
                     // 加密 Parity
                     enNrArParity[i] ^= crapto1.PeekCrypto1Bit(); 
                 }
@@ -274,7 +274,7 @@ namespace NfcDotNet
                 Console.Write("   [suc3(Nt)]: ");
                 PrintHex(enAt, 4);
                 // 解密[at]
-                var at = Crapto1Func.ToUInt32(enAt, 0) ^ crapto1.Crypto1Word(0, false);
+                var at = Crapto1Func.ToUInt32(enAt) ^ crapto1.Crypto1Word();
                 Console.WriteLine("At: {0:x8} == suc3(Nt):{1:x8}", at, Crapto1Func.PrngSuccessor(nt, 96));
 
 

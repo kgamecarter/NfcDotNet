@@ -29,13 +29,13 @@ namespace NfcDotNet.LibCrapto1
             crypto1StatePtr = Crapto1Func.Crypto1Create(key);
         }
 
-        public byte Crypto1Bit(byte v, bool isEncrypted) =>
+        public byte Crypto1Bit(byte v = 0, bool isEncrypted = false) =>
             Crapto1Func.Crypto1Bit(crypto1StatePtr, v, isEncrypted ? 1 : 0);
 
-        public byte Crypto1Byte(byte v, bool isEncrypted) =>
+        public byte Crypto1Byte(byte v = 0, bool isEncrypted = false) =>
             Crapto1Func.Crypto1Byte(crypto1StatePtr, v, isEncrypted ? 1 : 0);
 
-        public uint Crypto1Word(uint v, bool isEncrypted) =>
+        public uint Crypto1Word(uint v = 0, bool isEncrypted = false) =>
             Crapto1Func.Crypto1Word(crypto1StatePtr, v, isEncrypted ? 1 : 0);
 
         public byte PeekCrypto1Bit() =>
