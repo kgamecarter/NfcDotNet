@@ -41,7 +41,7 @@ namespace NfcDotNet.LibCrapto1
         public byte PeekCrypto1Bit() =>
             Crapto1Func.Filter(State.Odd);
 
-        public void Encrypt(byte[] data, byte[] parirty, int offset, int length, bool addin = false)
+        public void Encrypt(byte[] data, byte[] parirty, int offset, int length, bool isIn = false)
         {
             int end = offset + length;
             for (int i = offset; i < end; i++)
@@ -49,7 +49,7 @@ namespace NfcDotNet.LibCrapto1
                 // 計算 Parity
                 parirty[i] = Parity.OddParity8(data[i]);
                 // 加密
-                data[i] ^= Crypto1Byte(addin ? data[i] : (byte)0);
+                data[i] ^= Crypto1Byte(isIn ? data[i] : (byte)0);
                 // 加密 Parity
                 parirty[i] ^= PeekCrypto1Bit();
             }
@@ -58,11 +58,6 @@ namespace NfcDotNet.LibCrapto1
         public void Dispose()
         {
             Dispose(true);
-            // This object will be cleaned up by the Dispose method.
-            // Therefore, you should call GC.SupressFinalize to
-            // take this object off the finalization queue
-            // and prevent finalization code for this object
-            // from executing a second time.
             GC.SuppressFinalize(this);
         }
 
@@ -70,11 +65,10 @@ namespace NfcDotNet.LibCrapto1
         {
             if (!this.disposed)
             {
-                // If disposing equals true, dispose all managed
-                // and unmanaged resources.
                 if (disposing)
                 {
                     // Dispose managed resources.
+                    // component.Dispose();
                 }
                 Crapto1Func.Crypto1Destroy(crypto1StatePtr);
                 crypto1StatePtr = IntPtr.Zero;
@@ -84,9 +78,6 @@ namespace NfcDotNet.LibCrapto1
 
         ~Crapto1()
         {
-            // Do not re-create Dispose clean-up code here.
-            // Calling Dispose(false) is optimal in terms of
-            // readability and maintainability.
             Dispose(false);
         }
     }

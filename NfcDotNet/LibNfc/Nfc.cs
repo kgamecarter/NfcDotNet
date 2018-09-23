@@ -69,8 +69,10 @@ namespace NfcDotNet.LibNfc
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
         public struct Context
         {
+            [MarshalAs(UnmanagedType.U1)]
             public bool AllowAutoscan;
 
+            [MarshalAs(UnmanagedType.U1)]
             public bool AllowIntrusiveScan;
 
             public uint LogLevel;
@@ -90,6 +92,7 @@ namespace NfcDotNet.LibNfc
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 1024)]
             public string ConnString;
 
+            [MarshalAs(UnmanagedType.U1)]
             bool Optional;
         }
 

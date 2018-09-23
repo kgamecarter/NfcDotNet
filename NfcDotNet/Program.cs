@@ -148,9 +148,7 @@ namespace NfcDotNet
 
             // Check answer
             if ((abtRx[0] ^ abtRx[1] ^ abtRx[2] ^ abtRx[3] ^ abtRx[4]) != 0)
-            {
                 Console.WriteLine("WARNING: BCC check failed!");
-            }
 
             // Save the UID CL1
             Array.Copy(abtRx, abtRawUid, 4);
@@ -168,9 +166,7 @@ namespace NfcDotNet
                 szCL = 2;// or more
                          // Check answer
                 if (abtRawUid[0] != 0x88)
-                {
-                    Console.WriteLine("WARNING: Cascade bit set but CT != 0x88!\n");
-                }
+                    Console.WriteLine("WARNING: Cascade bit set but CT != 0x88!");
             }
 
             #region CL
@@ -186,9 +182,7 @@ namespace NfcDotNet
 
                 // Check answer
                 if ((abtRx[0] ^ abtRx[1] ^ abtRx[2] ^ abtRx[3] ^ abtRx[4]) != 0)
-                {
-                    Console.WriteLine("WARNING: BCC check failed!\n");
-                }
+                    Console.WriteLine("WARNING: BCC check failed!");
 
                 // Save UID CL2
                 Array.Copy(abtRx, 0, abtRawUid, 4, 4);
@@ -206,9 +200,7 @@ namespace NfcDotNet
                     szCL = 3;
                     // Check answer
                     if (abtRawUid[0] != 0x88)
-                    {
-                        Console.WriteLine("WARNING: Cascade bit set but CT != 0x88!\n");
-                    }
+                        Console.WriteLine("WARNING: Cascade bit set but CT != 0x88!");
                 }
 
                 if (szCL == 3)
@@ -221,9 +213,7 @@ namespace NfcDotNet
 
                     // Check answer
                     if ((abtRx[0] ^ abtRx[1] ^ abtRx[2] ^ abtRx[3] ^ abtRx[4]) != 0)
-                    {
-                        Console.WriteLine("WARNING: BCC check failed!\n");
-                    }
+                        Console.WriteLine("WARNING: BCC check failed!");
 
                     // Save UID CL3
                     Array.Copy(abtRx, 0, abtRawUid, 8, 4);
@@ -337,7 +327,7 @@ namespace NfcDotNet
                 Console.WriteLine();
             }
             
-            device.DeviceSetPropertyBool(NfcProperty.HandleParity, true);
+            // device.DeviceSetPropertyBool(NfcProperty.HandleParity, true);
             // Done, halt the tag now
             Nfc.Iso14443aCrcAppend(abtHalt, 2);
             TransmitBytes(abtHalt, 4);

@@ -54,11 +54,6 @@ namespace NfcDotNet.LibNfc
         public void Dispose()
         {
             Dispose(true);
-            // This object will be cleaned up by the Dispose method.
-            // Therefore, you should call GC.SupressFinalize to
-            // take this object off the finalization queue
-            // and prevent finalization code for this object
-            // from executing a second time.
             GC.SuppressFinalize(this);
         }
 
@@ -66,11 +61,10 @@ namespace NfcDotNet.LibNfc
         {
             if (!this.disposed)
             {
-                // If disposing equals true, dispose all managed
-                // and unmanaged resources.
                 if (disposing)
                 {
                     // Dispose managed resources.
+                    // component.Dispose();
                 }
                 Nfc.Close(devicePointer);
                 devicePointer = IntPtr.Zero;
@@ -80,9 +74,6 @@ namespace NfcDotNet.LibNfc
 
         ~NfcDevice()
         {
-            // Do not re-create Dispose clean-up code here.
-            // Calling Dispose(false) is optimal in terms of
-            // readability and maintainability.
             Dispose(false);
         }
     }
