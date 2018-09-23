@@ -48,6 +48,7 @@
     <Compile Include="LibCrapto1\Crypto1State.cs" />
     <Compile Include="LibCrapto1\Parity.cs" />
     <Compile Include="LibNfc\Nfc.cs" />
+    <Compile Include="LibNfc\NfcContext.cs" />
     <Compile Include="LibNfc\NfcDevice.cs" />
     <Compile Include="LibNfc\NfcProperty.cs" />
     <Compile Include="Program.cs" />

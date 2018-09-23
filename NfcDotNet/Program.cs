@@ -28,62 +28,6 @@ namespace NfcDotNet
 
         static byte[] abtRx = new byte[MAX_FRAME_LEN];
 
-
-        static void Test()
-        {
-            //shared informationn
-            ulong key = 0xffffffffffffUL;
-            uint uid = 0x9c599b32;
-
-
-            //information available to the tag
-            uint nonce = 0xA55D950B;
-            uint rn_enc = 0x98d76b77;
-            uint rr_enc = 0xd6c6e870;
-
-            //information available to the reader
-            uint nonce_enc = 0x5a920d85;
-            uint rn = 0x77B78918;
-            uint tr_enc = 0xca7e0b63;
-
-            //TAG
-            Console.WriteLine("from the TAG's point of view:");
-            using (var crapto1 = new Crapto1(key))
-            {
-                Console.WriteLine("\tsending [tag nonce]   : {0:x8}", nonce ^ crapto1.Crypto1Word(uid ^ nonce, false));
-                Console.WriteLine("\treceived reader nonce : {0:x8}", rn_enc ^ crapto1.Crypto1Word(rn_enc, true));
-                Console.WriteLine("\treceived reader reply : {0:x8}", rr_enc ^ crapto1.Crypto1Word(0, false));
-                Console.WriteLine("\tsending [tag reply]   : {0:x8}", Crapto1Func.PrngSuccessor(nonce, 96) ^ crapto1.Crypto1Word(0, false));
-            }
-
-            //READER
-            Console.WriteLine();
-            Console.WriteLine("from the READER's point of view:");
-            using (var crapto1 = new Crapto1(key))
-            {
-                Console.WriteLine("\treceived tag nonce     : {0:x8}", nonce = (nonce_enc ^ crapto1.Crypto1Word(uid ^ nonce_enc, true)));
-                Console.WriteLine("\tsending [reader nonce] : {0:x8}", rn ^ crapto1.Crypto1Word(rn, false));
-                Console.WriteLine("\tsending [reader reply] : {0:x8}", Crapto1Func.PrngSuccessor(nonce, 64) ^ crapto1.Crypto1Word(0, false));
-                Console.WriteLine("\treceived tag reply     : {0:x8}", tr_enc ^ crapto1.Crypto1Word(0, false));
-            }
-            Console.ReadLine();
-        }
-
-        static void ReadBlock(Crapto1 crapto1, byte b)
-        {
-            abtRead[1] = b;
-            Nfc.Iso14443aCrcAppend(abtRead, 2);
-            var enAbtRead = abtRead.ToArray();
-            var enAbtReadParity = new byte[4];
-            crapto1.Encrypt(enAbtRead, enAbtReadParity, 0, 4);
-            device.InitiatorTransceiveBits(enAbtRead, 32, enAbtReadParity, abtRx, MAX_FRAME_LEN, null);
-            var block = new byte[18]; // 16byte data + 2byte crc
-            for (int i = 0; i < 18; i++)
-                block[i] = (byte)(abtRx[i] ^ crapto1.Crypto1Byte());
-            Console.Write("      Block{0,2}: ", b);
-            PrintHex(block, 16);
-        }
-
         static void Main(string[] args)
         {
             byte[] abtRawUid = new byte[12];
@@ -93,244 +37,218 @@ namespace NfcDotNet
             uint szAts = 0;
             bool isoAtsSupported = false;
             bool forceRats = false;
-
-            IntPtr context;
-            Nfc.Init(out context);
-            if (context == IntPtr.Zero)
-            {
-                Console.Error.WriteLine("Unable to init libnfc (malloc)");
-                Environment.Exit(1);
-            }
-
-            // Try to open the NFC reader
-            var devicePointer = Nfc.Open(context, null);
-            if (devicePointer == IntPtr.Zero)
-            {
-                Console.Error.WriteLine("Error opening NFC reader");
-                Nfc.Exit(context);
-                Environment.Exit(1);
-            }
-            device = new NfcDevice(devicePointer);
-
-            // Initialise NFC device as "initiator"
-            if (device.InitiatorInit() < 0)
-            {
-                device.Perror("nfc_initiator_init");
-                device.Close();
-                Nfc.Exit(context);
-                Environment.Exit(1);
-            }
-
-            if (device.DeviceSetPropertyBool(NfcProperty.HandleCrc, false) < 0 ||    // Configure the CRC
-                device.DeviceSetPropertyBool(NfcProperty.EasyFraming, false) < 0 ||  // Use raw send/receive methods
-                device.DeviceSetPropertyBool(NfcProperty.AutoIso14443_4, false) < 0) // Disable 14443-4 autoswitching
-            {
-                device.Perror("nfc_device_set_property_bool");
-                device.Close();
-                Nfc.Exit(context);
-                Environment.Exit(1);
-            }
-            Console.WriteLine("NFC reader: {0} opened", device.Name);
-            Console.WriteLine();
-
-            // Send the 7 bits request command specified in ISO 14443A (0x26)
-            if (!TransmitBits(abtReqa, 7))
-            {
-                Console.WriteLine("Error: No tag available");
-                Nfc.Close(devicePointer);
-                Nfc.Exit(context);
-                Environment.Exit(1);
-            }
-            Array.Copy(abtRx, abtAtqa, 2);
-
-            // Anti-collision
-            TransmitBytes(abtSelectAll, 2);
-
-            // Check answer
-            if ((abtRx[0] ^ abtRx[1] ^ abtRx[2] ^ abtRx[3] ^ abtRx[4]) != 0)
-                Console.WriteLine("WARNING: BCC check failed!");
-
-            // Save the UID CL1
-            Array.Copy(abtRx, abtRawUid, 4);
-
-            //Prepare and send CL1 Select-Command
-            Array.Copy(abtRx, 0, abtSelectTag, 2, 5);
-            Nfc.Iso14443aCrcAppend(abtSelectTag, 7);
-            TransmitBytes(abtSelectTag, 9);
-            abtSak = abtRx[0];
-
             uint szCL = 1;
-            // Test if we are dealing with a CL2
-            if ((abtSak & CASCADE_BIT) != 0)
+            try
             {
-                szCL = 2;// or more
-                         // Check answer
-                if (abtRawUid[0] != 0x88)
-                    Console.WriteLine("WARNING: Cascade bit set but CT != 0x88!");
-            }
-
-            #region CL
-            if (szCL == 2)
-            {
-                // We have to do the anti-collision for cascade level 2
-
-                // Prepare CL2 commands
-                abtSelectAll[0] = 0x95;
-
-                // Anti-collision
-                TransmitBytes(abtSelectAll, 2);
-
-                // Check answer
-                if ((abtRx[0] ^ abtRx[1] ^ abtRx[2] ^ abtRx[3] ^ abtRx[4]) != 0)
-                    Console.WriteLine("WARNING: BCC check failed!");
-
-                // Save UID CL2
-                Array.Copy(abtRx, 0, abtRawUid, 4, 4);
-
-                // Selection
-                abtSelectTag[0] = 0x95;
-                Array.Copy(abtRx, 0, abtSelectTag, 2, 5);
-                Nfc.Iso14443aCrcAppend(abtSelectTag, 7);
-                TransmitBytes(abtSelectTag, 9);
-                abtSak = abtRx[0];
-
-                // Test if we are dealing with a CL3
-                if ((abtSak & CASCADE_BIT) != 0)
+                using (var context = new NfcContext())
+                using (device = context.OpenDevice()) // Try to open the NFC reader
                 {
-                    szCL = 3;
-                    // Check answer
-                    if (abtRawUid[0] != 0x88)
-                        Console.WriteLine("WARNING: Cascade bit set but CT != 0x88!");
-                }
-
-                if (szCL == 3)
-                {
-                    // We have to do the anti-collision for cascade level 3
-
-                    // Prepare and send CL3 AC-Command
-                    abtSelectAll[0] = 0x97;
+                    // Initialise NFC device as "initiator"
+                    device.InitiatorInit();
+                    // Configure the CRC
+                    device.DeviceSetPropertyBool(NfcProperty.HandleCrc, false);
+                    // Use raw send/receive methods
+                    device.DeviceSetPropertyBool(NfcProperty.EasyFraming, false);
+                    // Disable 14443-4 autoswitching
+                    device.DeviceSetPropertyBool(NfcProperty.AutoIso14443_4, false);
+                    Console.WriteLine("NFC reader: {0} opened", device.Name);
+                    Console.WriteLine();
+                    // Send the 7 bits request command specified in ISO 14443A (0x26)
+                    TransmitBits(abtReqa, 7);
+                    Array.Copy(abtRx, abtAtqa, 2);
+                    // Anti-collision
                     TransmitBytes(abtSelectAll, 2);
-
                     // Check answer
                     if ((abtRx[0] ^ abtRx[1] ^ abtRx[2] ^ abtRx[3] ^ abtRx[4]) != 0)
                         Console.WriteLine("WARNING: BCC check failed!");
+                    // Save the UID CL1
+                    Array.Copy(abtRx, abtRawUid, 4);
 
-                    // Save UID CL3
-                    Array.Copy(abtRx, 0, abtRawUid, 8, 4);
 
-                    // Prepare and send final Select-Command
-                    abtSelectTag[0] = 0x97;
+                    //Prepare and send CL1 Select-Command
                     Array.Copy(abtRx, 0, abtSelectTag, 2, 5);
                     Nfc.Iso14443aCrcAppend(abtSelectTag, 7);
                     TransmitBytes(abtSelectTag, 9);
                     abtSak = abtRx[0];
+
+                    #region CL
+                    // Test if we are dealing with a CL2
+                    if ((abtSak & CASCADE_BIT) != 0)
+                    {
+                        szCL = 2;// or more
+                                 // Check answer
+                        if (abtRawUid[0] != 0x88)
+                            Console.WriteLine("WARNING: Cascade bit set but CT != 0x88!");
+                    }
+
+                    if (szCL == 2)
+                    {
+                        // We have to do the anti-collision for cascade level 2
+
+                        // Prepare CL2 commands
+                        abtSelectAll[0] = 0x95;
+
+                        // Anti-collision
+                        TransmitBytes(abtSelectAll, 2);
+
+                        // Check answer
+                        if ((abtRx[0] ^ abtRx[1] ^ abtRx[2] ^ abtRx[3] ^ abtRx[4]) != 0)
+                            Console.WriteLine("WARNING: BCC check failed!");
+
+                        // Save UID CL2
+                        Array.Copy(abtRx, 0, abtRawUid, 4, 4);
+
+                        // Selection
+                        abtSelectTag[0] = 0x95;
+                        Array.Copy(abtRx, 0, abtSelectTag, 2, 5);
+                        Nfc.Iso14443aCrcAppend(abtSelectTag, 7);
+                        TransmitBytes(abtSelectTag, 9);
+                        abtSak = abtRx[0];
+
+                        // Test if we are dealing with a CL3
+                        if ((abtSak & CASCADE_BIT) != 0)
+                        {
+                            szCL = 3;
+                            // Check answer
+                            if (abtRawUid[0] != 0x88)
+                                Console.WriteLine("WARNING: Cascade bit set but CT != 0x88!");
+                        }
+
+                        if (szCL == 3)
+                        {
+                            // We have to do the anti-collision for cascade level 3
+
+                            // Prepare and send CL3 AC-Command
+                            abtSelectAll[0] = 0x97;
+                            TransmitBytes(abtSelectAll, 2);
+
+                            // Check answer
+                            if ((abtRx[0] ^ abtRx[1] ^ abtRx[2] ^ abtRx[3] ^ abtRx[4]) != 0)
+                                Console.WriteLine("WARNING: BCC check failed!");
+
+                            // Save UID CL3
+                            Array.Copy(abtRx, 0, abtRawUid, 8, 4);
+
+                            // Prepare and send final Select-Command
+                            abtSelectTag[0] = 0x97;
+                            Array.Copy(abtRx, 0, abtSelectTag, 2, 5);
+                            Nfc.Iso14443aCrcAppend(abtSelectTag, 7);
+                            TransmitBytes(abtSelectTag, 9);
+                            abtSak = abtRx[0];
+                        }
+                    }
+                    #endregion
+
+                    // Request ATS, this only applies to tags that support ISO 14443A-4
+                    if ((abtRx[0] & SAK_FLAG_ATS_SUPPORTED) != 0)
+                        isoAtsSupported = true;
+                    if ((abtRx[0] & SAK_FLAG_ATS_SUPPORTED) != 0 || forceRats)
+                    {
+                        Nfc.Iso14443aCrcAppend(abtRats, 2);
+                        int szRx = TransmitBytes(abtRats, 4);
+                        if (szRx >= 0)
+                        {
+                            Array.Copy(abtRx, abtAts, szRx);
+                            szAts = (uint)szRx;
+                        }
+                    }
+                    Console.WriteLine();
+                    Console.WriteLine("驗證Block 0");
+                    // 驗證 Block 0
+                    Nfc.Iso14443aCrcAppend(abtAuthA, 2);
+                    TransmitBytes(abtAuthA, 4);
+                    // 自己控制 Parity bit
+                    device.DeviceSetPropertyBool(NfcProperty.HandleParity, false);
+
+                    var nt = Crapto1Func.ToUInt32(abtRx);
+                    var uid = Crapto1Func.ToUInt32(abtRawUid);
+                    Console.Write("           Nt: ");
+                    PrintHex(abtRx, 4);
+                    using (var crapto1 = new Crapto1(0xFFFFFFFFFFFFu))
+                    {
+                        // 初始化 crapto1 狀態 feed in uid^nt and drop keystream in the first round
+                        crapto1.Crypto1Word(uid ^ nt);
+                        // 自訂讀卡機端nonce
+                        var nr = 0x01020304u;
+                        // Ar 為 suc2(nt)
+                        var ar = Crapto1Func.PrngSuccessor(nt, 64);
+                        // 加密 Nr,suc2(Nt) 和 parity bit
+                        var enNrAr = Crapto1Func.GetBytes(nr).Concat(Crapto1Func.GetBytes(ar)).ToArray();
+                        var enNrArParity = new byte[8];
+                        crapto1.Encrypt(enNrAr, enNrArParity, 0, 4, true);
+                        crapto1.Encrypt(enNrAr, enNrArParity, 4, 4);
+                        Console.Write("[Nr,suc2(Nt)]: ");
+                        PrintHex(enNrAr, 8);
+                        // 送出[Nr,suc2(Nt)]
+                        device.InitiatorTransceiveBits(enNrAr, 64, enNrArParity, abtRx, MAX_FRAME_LEN, null);
+                        var enAt = new byte[4];
+                        Array.Copy(abtRx, enAt, 4);
+                        Console.Write("   [suc3(Nt)]: ");
+                        PrintHex(enAt, 4);
+                        // 解密[at]
+                        var at = Crapto1Func.ToUInt32(enAt) ^ crapto1.Crypto1Word();
+                        Console.WriteLine("At: {0:x8} == suc3(Nt):{1:x8}", at, Crapto1Func.PrngSuccessor(nt, 96));
+                        // 讀取 Block
+                        for (byte i = 0; i < 4; i++)
+                            ReadBlock(crapto1, i);
+                        Console.WriteLine();
+                        Console.WriteLine("Nested驗證 Block 4");
+                        // Nested驗證 Block 4
+                        abtAuthA[1] = 4;
+                        Nfc.Iso14443aCrcAppend(abtAuthA, 2);
+                        var enAuth = abtAuthA.ToArray();
+                        var enAuthParity = new byte[4];
+                        crapto1.Encrypt(enAuth, enAuthParity, 0, 4);
+                        device.InitiatorTransceiveBits(enAuth, 32, enAuthParity, abtRx, MAX_FRAME_LEN, null);
+
+                    }
+                    // 開始Nested驗證的新crypto1密鑰
+                    using (var crapto1 = new Crapto1(0xFFFFFFFFFFFFu))
+                    {
+                        Console.Write("     未解密Nt: ");
+                        PrintHex(abtRx, 4);
+                        var enNt = Crapto1Func.ToUInt32(abtRx);
+                        // 初始化 crapto1 狀態 用加密的Nt，並解出明文nt
+                        nt = enNt ^ crapto1.Crypto1Word(uid ^ enNt, true);
+                        Console.Write("           Nt: ");
+                        PrintHex(Crapto1Func.GetBytes(nt), 4);
+                        // 自訂讀卡機端nonce
+                        var nr = 0x01020304u;
+                        // Ar 為 suc2(nt)
+                        var ar = Crapto1Func.PrngSuccessor(nt, 64);
+                        // 加密 Nr,suc2(Nt) 和 parity bit
+                        var enNrAr = Crapto1Func.GetBytes(nr).Concat(Crapto1Func.GetBytes(ar)).ToArray();
+                        var enNrArParity = new byte[8];
+                        crapto1.Encrypt(enNrAr, enNrArParity, 0, 4, true);
+                        crapto1.Encrypt(enNrAr, enNrArParity, 4, 4);
+                        Console.Write("[Nr,suc2(Nt)]: ");
+                        PrintHex(enNrAr, 8);
+                        // 送出[Nr,suc2(Nt)]
+                        var res = device.InitiatorTransceiveBits(enNrAr, 64, enNrArParity, abtRx, MAX_FRAME_LEN, null);
+                        var enAt = new byte[4];
+                        Array.Copy(abtRx, enAt, 4);
+                        Console.Write("   [suc3(Nt)]: ");
+                        PrintHex(enAt, 4);
+                        // 解密[at]
+                        var at = Crapto1Func.ToUInt32(enAt) ^ crapto1.Crypto1Word();
+                        Console.WriteLine("At: {0:x8} == suc3(Nt):{1:x8}", at, Crapto1Func.PrngSuccessor(nt, 96));
+                        // 讀取 Block
+                        for (byte i = 4; i < 8; i++)
+                            ReadBlock(crapto1, i);
+                        Console.WriteLine();
+                    }
+
+                    // device.DeviceSetPropertyBool(NfcProperty.HandleParity, true);
+                    // Done, halt the tag now
+                    Nfc.Iso14443aCrcAppend(abtHalt, 2);
+                    TransmitBytes(abtHalt, 4);
                 }
             }
-            #endregion
-
-            // Request ATS, this only applies to tags that support ISO 14443A-4
-            if ((abtRx[0] & SAK_FLAG_ATS_SUPPORTED) != 0)
-                isoAtsSupported = true;
-            if ((abtRx[0] & SAK_FLAG_ATS_SUPPORTED) != 0 || forceRats)
+            catch(Exception ex)
             {
-                Nfc.Iso14443aCrcAppend(abtRats, 2);
-                int szRx = TransmitBytes(abtRats, 4);
-                if (szRx >= 0)
-                {
-                    Array.Copy(abtRx, abtAts, szRx);
-                    szAts = (uint)szRx;
-                }
+                Console.WriteLine(ex.Message);
+                Environment.Exit(1);
             }
-            Console.WriteLine();
-            Console.WriteLine("驗證Block 0");
-            // 驗證 Block 0
-            Nfc.Iso14443aCrcAppend(abtAuthA, 2);
-            TransmitBytes(abtAuthA, 4);
-            // 自己控制 Parity bit
-            device.DeviceSetPropertyBool(NfcProperty.HandleParity, false);
-
-            var nt = Crapto1Func.ToUInt32(abtRx);
-            var uid = Crapto1Func.ToUInt32(abtRawUid);
-            Console.Write("           Nt: ");
-            PrintHex(abtRx, 4);
-            using (var crapto1 = new Crapto1(0xFFFFFFFFFFFFu))
-            {
-                // 初始化 crapto1 狀態 feed in uid^nt and drop keystream in the first round
-                crapto1.Crypto1Word(uid ^ nt);
-                // 自訂讀卡機端nonce
-                var nr = 0x01020304u;
-                // Ar 為 suc2(nt)
-                var ar = Crapto1Func.PrngSuccessor(nt, 64); 
-                // 加密 Nr,suc2(Nt) 和 parity bit
-                var enNrAr = Crapto1Func.GetBytes(nr).Concat(Crapto1Func.GetBytes(ar)).ToArray();
-                var enNrArParity = new byte[8];
-                crapto1.Encrypt(enNrAr, enNrArParity, 0, 4, true);
-                crapto1.Encrypt(enNrAr, enNrArParity, 4, 4);
-                Console.Write("[Nr,suc2(Nt)]: ");
-                PrintHex(enNrAr, 8);
-                // 送出[Nr,suc2(Nt)]
-                device.InitiatorTransceiveBits(enNrAr, 64, enNrArParity, abtRx, MAX_FRAME_LEN, null);
-                var enAt = new byte[4];
-                Array.Copy(abtRx, enAt, 4);
-                Console.Write("   [suc3(Nt)]: ");
-                PrintHex(enAt, 4);
-                // 解密[at]
-                var at = Crapto1Func.ToUInt32(enAt) ^ crapto1.Crypto1Word();
-                Console.WriteLine("At: {0:x8} == suc3(Nt):{1:x8}", at, Crapto1Func.PrngSuccessor(nt, 96));
-                // 讀取 Block
-                for (byte i = 0; i < 4; i++)
-                    ReadBlock(crapto1, i);
-                Console.WriteLine();
-                Console.WriteLine("Nested驗證 Block 4");
-                // Nested驗證 Block 4
-                abtAuthA[1] = 4;
-                Nfc.Iso14443aCrcAppend(abtAuthA, 2);
-                var enAuth = abtAuthA.ToArray();
-                var enAuthParity = new byte[4];
-                crapto1.Encrypt(enAuth, enAuthParity, 0, 4);
-                device.InitiatorTransceiveBits(enAuth, 32, enAuthParity, abtRx, MAX_FRAME_LEN, null);
-
-            }
-            // 開始Nested驗證的新crypto1密鑰
-            using (var crapto1 = new Crapto1(0xFFFFFFFFFFFFu))
-            {
-                Console.Write("     未解密Nt: ");
-                PrintHex(abtRx, 4);
-                var enNt = Crapto1Func.ToUInt32(abtRx);
-                // 初始化 crapto1 狀態 用加密的Nt，並解出明文nt
-                nt = enNt ^ crapto1.Crypto1Word(uid ^ enNt, true);
-                Console.Write("           Nt: ");
-                PrintHex(Crapto1Func.GetBytes(nt), 4);
-                // 自訂讀卡機端nonce
-                var nr = 0x01020304u;
-                // Ar 為 suc2(nt)
-                var ar = Crapto1Func.PrngSuccessor(nt, 64);
-                // 加密 Nr,suc2(Nt) 和 parity bit
-                var enNrAr = Crapto1Func.GetBytes(nr).Concat(Crapto1Func.GetBytes(ar)).ToArray();
-                var enNrArParity = new byte[8];
-                crapto1.Encrypt(enNrAr, enNrArParity, 0, 4, true);
-                crapto1.Encrypt(enNrAr, enNrArParity, 4, 4);
-                Console.Write("[Nr,suc2(Nt)]: ");
-                PrintHex(enNrAr, 8);
-                // 送出[Nr,suc2(Nt)]
-                var res = device.InitiatorTransceiveBits(enNrAr, 64, enNrArParity, abtRx, MAX_FRAME_LEN, null);
-                var enAt = new byte[4];
-                Array.Copy(abtRx, enAt, 4);
-                Console.Write("   [suc3(Nt)]: ");
-                PrintHex(enAt, 4);
-                // 解密[at]
-                var at = Crapto1Func.ToUInt32(enAt) ^ crapto1.Crypto1Word();
-                Console.WriteLine("At: {0:x8} == suc3(Nt):{1:x8}", at, Crapto1Func.PrngSuccessor(nt, 96));
-                // 讀取 Block
-                for (byte i = 4; i < 8; i++)
-                    ReadBlock(crapto1, i);
-                Console.WriteLine();
-            }
-            
-            // device.DeviceSetPropertyBool(NfcProperty.HandleParity, true);
-            // Done, halt the tag now
-            Nfc.Iso14443aCrcAppend(abtHalt, 2);
-            TransmitBytes(abtHalt, 4);
             Console.WriteLine();
             Console.WriteLine("Found tag with");
             Console.Write(" UID: ");
@@ -359,15 +277,26 @@ namespace NfcDotNet
                 Console.Write(" ATS: ");
                 PrintHex(abtAts, szAts);
             }
-            
-            device.Close();
-            Nfc.Exit(context);
-            Console.ReadLine();
+        }
+
+        static void ReadBlock(Crapto1 crapto1, byte b)
+        {
+            abtRead[1] = b;
+            Nfc.Iso14443aCrcAppend(abtRead, 2);
+            var enAbtRead = abtRead.ToArray();
+            var enAbtReadParity = new byte[4];
+            crapto1.Encrypt(enAbtRead, enAbtReadParity, 0, 4);
+            device.InitiatorTransceiveBits(enAbtRead, 32, enAbtReadParity, abtRx, MAX_FRAME_LEN, null);
+            var block = new byte[18]; // 16byte data + 2byte crc
+            for (int i = 0; i < 18; i++)
+                block[i] = (byte)(abtRx[i] ^ crapto1.Crypto1Byte());
+            Console.Write("      Block{0,2}: ", b);
+            PrintHex(block, 16);
         }
 
         static bool quietOutput = false;
         static bool timed = false;
-        static bool TransmitBits(byte[] pbtTx, uint szTxBits)
+        static int TransmitBits(byte[] pbtTx, uint szTxBits)
         {
             // Show transmitted command
             if (!quietOutput)
@@ -381,7 +310,7 @@ namespace NfcDotNet
             {
                 uint cycles = 0;
                 if ((szRxBits = device.InitiatorTransceiveBitsTimed(pbtTx, szTxBits, null, abtRx, MAX_FRAME_LEN, null, ref cycles)) < 0)
-                    return false;
+                    throw new Exception("Error: No tag available");
                 if ((!quietOutput) && (szRxBits > 0))
                 {
                     Console.WriteLine("Response after {0} cycles", cycles);
@@ -390,7 +319,7 @@ namespace NfcDotNet
             else
             {
                 if ((szRxBits = device.InitiatorTransceiveBits(pbtTx, szTxBits, null, abtRx, MAX_FRAME_LEN, null)) < 0)
-                    return false;
+                    throw new Exception("Error: No tag available");
             }
             // Show received answer
             if (!quietOutput)
@@ -399,7 +328,7 @@ namespace NfcDotNet
                 PrintHexBits(abtRx, (uint)szRxBits);
             }
             // Succesful transfer
-            return true;
+            return szRxBits;
         }
 
         static int TransmitBytes(byte[] pbtTx, uint szTx)

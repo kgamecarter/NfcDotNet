@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace NfcDotNet.LibNfc
 {
-    public class NfcDevice: IDisposable
+    public class NfcDevice : IDisposable
     {
         private IntPtr devicePointer;
         private bool disposed = false;
@@ -28,11 +28,25 @@ namespace NfcDotNet.LibNfc
             this.devicePointer = devicePointer;
         }
 
-        public int InitiatorInit() =>
-            Nfc.InitiatorInit(devicePointer);
+        public void InitiatorInit()
+        { 
+            var result = Nfc.InitiatorInit(devicePointer);
+            if (result < 0)
+            {
+                Perror("nfc_initiator_init");
+                throw new Exception("nfc_initiator_init");
+            }
+        }
 
-        public int DeviceSetPropertyBool(NfcProperty property, bool enable) =>
-            Nfc.DeviceSetPropertyBool(devicePointer, property, enable);
+        public void DeviceSetPropertyBool(NfcProperty property, bool enable)
+        {
+            var result = Nfc.DeviceSetPropertyBool(devicePointer, property, enable);
+            if (result < 0)
+            {
+                Perror("nfc_device_set_property_bool");
+                throw new Exception("nfc_device_set_property_bool");
+            }
+        }
 
         public int InitiatorTransceiveBitsTimed(byte[] pbtTx, uint szTxBits, byte[] pbtTxPar, byte[] pbtRx, uint szRx, byte[] pbtRxPar, ref uint cycles) =>
             Nfc.InitiatorTransceiveBitsTimed(devicePointer, pbtTx, szTxBits, pbtTxPar, pbtRx, szRx, pbtRxPar, ref cycles);

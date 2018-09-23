@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace NfcDotNet.LibCrapto1
 {
-    public class Crapto1: IDisposable
+    public class Crapto1 : IDisposable
     {
         private IntPtr crypto1StatePtr;
         private bool disposed = false;
