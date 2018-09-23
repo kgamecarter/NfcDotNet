@@ -73,19 +73,13 @@ namespace NfcDotNet
         {
             abtRead[1] = b;
             Nfc.Iso14443aCrcAppend(abtRead, 2);
-            var enAbtRead = new byte[4];
+            var enAbtRead = abtRead.ToArray();
             var enAbtReadParity = new byte[4];
-            for (int i = 0; i < 4; i++)
-            {
-                enAbtReadParity[i] = Parity.OddParity8(abtRead[i]);
-                enAbtRead[i] = (byte)(abtRead[i] ^ crapto1.Crypto1Byte());
-                enAbtReadParity[i] ^= crapto1.PeekCrypto1Bit();
-            }
-            var res = device.InitiatorTransceiveBits(enAbtRead, 32, enAbtReadParity, abtRx, MAX_FRAME_LEN, null);
-            var block = new byte[16];
-            for (int i = 0; i < 16; i++)
+            crapto1.Encrypt(enAbtRead, enAbtReadParity, 0, 4);
+            device.InitiatorTransceiveBits(enAbtRead, 32, enAbtReadParity, abtRx, MAX_FRAME_LEN, null);
+            var block = new byte[18]; // 16byte data + 2byte crc
+            for (int i = 0; i < 18; i++)
                 block[i] = (byte)(abtRx[i] ^ crapto1.Crypto1Byte());
-            crapto1.Crypto1Byte(); crapto1.Crypto1Byte(); // skip crc
             Console.Write("      Block{0,2}: ", b);
             PrintHex(block, 16);
         }
@@ -280,15 +274,8 @@ namespace NfcDotNet
                 // 加密 Nr,suc2(Nt) 和 parity bit
                 var enNrAr = Crapto1Func.GetBytes(nr).Concat(Crapto1Func.GetBytes(ar)).ToArray();
                 var enNrArParity = new byte[8];
-                for (int i = 0; i < 8; i++)
-                {
-                    // 計算 Parity
-                    enNrArParity[i] = Parity.OddParity8(enNrAr[i]);
-                    // 加密, 0~3是Nr要帶入Crypto1位移
-                    enNrAr[i] ^= crapto1.Crypto1Byte(i < 4 ? enNrAr[i] : (byte)0);
-                    // 加密 Parity
-                    enNrArParity[i] ^= crapto1.PeekCrypto1Bit();
-                }
+                crapto1.Encrypt(enNrAr, enNrArParity, 0, 4, true);
+                crapto1.Encrypt(enNrAr, enNrArParity, 4, 4);
                 Console.Write("[Nr,suc2(Nt)]: ");
                 PrintHex(enNrAr, 8);
                 // 送出[Nr,suc2(Nt)]
@@ -308,14 +295,9 @@ namespace NfcDotNet
                 // Nested驗證 Block 4
                 abtAuthA[1] = 4;
                 Nfc.Iso14443aCrcAppend(abtAuthA, 2);
-                var enAuth = new byte[4];
+                var enAuth = abtAuthA.ToArray();
                 var enAuthParity = new byte[4];
-                for (int i = 0; i < 4; i++)
-                {
-                    enAuthParity[i] = Parity.OddParity8(abtAuthA[i]);
-                    enAuth[i] = (byte)(abtAuthA[i] ^ crapto1.Crypto1Byte());
-                    enAuthParity[i] ^= crapto1.PeekCrypto1Bit();
-                }
+                crapto1.Encrypt(enAuth, enAuthParity, 0, 4);
                 device.InitiatorTransceiveBits(enAuth, 32, enAuthParity, abtRx, MAX_FRAME_LEN, null);
 
             }
@@ -336,15 +318,8 @@ namespace NfcDotNet
                 // 加密 Nr,suc2(Nt) 和 parity bit
                 var enNrAr = Crapto1Func.GetBytes(nr).Concat(Crapto1Func.GetBytes(ar)).ToArray();
                 var enNrArParity = new byte[8];
-                for (int i = 0; i < 8; i++)
-                {
-                    // 計算 Parity
-                    enNrArParity[i] = Parity.OddParity8(enNrAr[i]);
-                    // 加密, 0~3是Nr要帶入Crypto1位移
-                    enNrAr[i] ^= crapto1.Crypto1Byte(i < 4 ? enNrAr[i] : (byte)0);
-                    // 加密 Parity
-                    enNrArParity[i] ^= crapto1.PeekCrypto1Bit();
-                }
+                crapto1.Encrypt(enNrAr, enNrArParity, 0, 4, true);
+                crapto1.Encrypt(enNrAr, enNrArParity, 4, 4);
                 Console.Write("[Nr,suc2(Nt)]: ");
                 PrintHex(enNrAr, 8);
                 // 送出[Nr,suc2(Nt)]

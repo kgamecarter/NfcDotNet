@@ -41,6 +41,20 @@ namespace NfcDotNet.LibCrapto1
         public byte PeekCrypto1Bit() =>
             Crapto1Func.Filter(State.Odd);
 
+        public void Encrypt(byte[] data, byte[] parirty, int offset, int length, bool addin = false)
+        {
+            int end = offset + length;
+            for (int i = offset; i < end; i++)
+            {
+                // 計算 Parity
+                parirty[i] = Parity.OddParity8(data[i]);
+                // 加密
+                data[i] ^= Crypto1Byte(addin ? data[i] : (byte)0);
+                // 加密 Parity
+                parirty[i] ^= PeekCrypto1Bit();
+            }
+        }
+
         public void Dispose()
         {
             Dispose(true);
