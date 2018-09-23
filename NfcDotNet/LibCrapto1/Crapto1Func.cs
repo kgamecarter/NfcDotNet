@@ -12,23 +12,23 @@ namespace NfcDotNet.LibCrapto1
         public const uint LF_POLY_ODD = 0x29CE5C;
         public const uint LF_POLY_EVEN = 0x870804;
 
-        [DllImport("Crapto1.dll", EntryPoint = "crypto1_create", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("Crapto1", EntryPoint = "crypto1_create", CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr Crypto1Create(ulong key);
 
-        [DllImport("Crapto1.dll", EntryPoint = "crypto1_destroy", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("Crapto1", EntryPoint = "crypto1_destroy", CallingConvention = CallingConvention.Cdecl)]
         public static extern void Crypto1Destroy(IntPtr ptr);
 
-        [DllImport("Crapto1.dll", EntryPoint = "crypto1_bit", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("Crapto1", EntryPoint = "crypto1_bit", CallingConvention = CallingConvention.Cdecl)]
         public static extern byte Crypto1Bit(IntPtr s, byte v, int is_encrypted);
 
-        [DllImport("Crapto1.dll", EntryPoint = "crypto1_byte", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("Crapto1", EntryPoint = "crypto1_byte", CallingConvention = CallingConvention.Cdecl)]
         public static extern byte Crypto1Byte(IntPtr s, byte v, int is_encrypted);
 
-        [DllImport("Crapto1.dll", EntryPoint = "crypto1_word", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("Crapto1", EntryPoint = "crypto1_word", CallingConvention = CallingConvention.Cdecl)]
         public static extern uint Crypto1Word(IntPtr s, uint v, int is_encrypted);
 
 
-        [DllImport("Crapto1.dll", EntryPoint = "prng_successor", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("Crapto1", EntryPoint = "prng_successor", CallingConvention = CallingConvention.Cdecl)]
         public static extern uint PrngSuccessor(uint x, uint n);
 
         public static byte Filter(uint x)
