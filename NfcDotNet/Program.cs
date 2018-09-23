@@ -69,6 +69,27 @@ namespace NfcDotNet
             Console.ReadLine();
         }
 
+        static void ReadBlock(Crapto1 crapto1, byte b)
+        {
+            abtRead[1] = b;
+            Nfc.Iso14443aCrcAppend(abtRead, 2);
+            var enAbtRead = new byte[4];
+            var enAbtReadParity = new byte[4];
+            for (int i = 0; i < 4; i++)
+            {
+                enAbtReadParity[i] = Parity.OddParity8(abtRead[i]);
+                enAbtRead[i] = (byte)(abtRead[i] ^ crapto1.Crypto1Byte());
+                enAbtReadParity[i] ^= crapto1.PeekCrypto1Bit();
+            }
+            var res = device.InitiatorTransceiveBits(enAbtRead, 32, enAbtReadParity, abtRx, MAX_FRAME_LEN, null);
+            var block = new byte[16];
+            for (int i = 0; i < 16; i++)
+                block[i] = (byte)(abtRx[i] ^ crapto1.Crypto1Byte());
+            crapto1.Crypto1Byte(); crapto1.Crypto1Byte(); // skip crc
+            Console.Write("      Block{0,2}: ", b);
+            PrintHex(block, 16);
+        }
+
         static void Main(string[] args)
         {
             byte[] abtRawUid = new byte[12];
@@ -236,7 +257,9 @@ namespace NfcDotNet
                     szAts = (uint)szRx;
                 }
             }
-
+            Console.WriteLine();
+            Console.WriteLine("驗證Block 0");
+            // 驗證 Block 0
             Nfc.Iso14443aCrcAppend(abtAuthA, 2);
             TransmitBytes(abtAuthA, 4);
             // 自己控制 Parity bit
@@ -269,6 +292,62 @@ namespace NfcDotNet
                 Console.Write("[Nr,suc2(Nt)]: ");
                 PrintHex(enNrAr, 8);
                 // 送出[Nr,suc2(Nt)]
+                device.InitiatorTransceiveBits(enNrAr, 64, enNrArParity, abtRx, MAX_FRAME_LEN, null);
+                var enAt = new byte[4];
+                Array.Copy(abtRx, enAt, 4);
+                Console.Write("   [suc3(Nt)]: ");
+                PrintHex(enAt, 4);
+                // 解密[at]
+                var at = Crapto1Func.ToUInt32(enAt) ^ crapto1.Crypto1Word();
+                Console.WriteLine("At: {0:x8} == suc3(Nt):{1:x8}", at, Crapto1Func.PrngSuccessor(nt, 96));
+                // 讀取 Block
+                for (byte i = 0; i < 4; i++)
+                    ReadBlock(crapto1, i);
+                Console.WriteLine();
+                Console.WriteLine("Nested驗證 Block 4");
+                // Nested驗證 Block 4
+                abtAuthA[1] = 4;
+                Nfc.Iso14443aCrcAppend(abtAuthA, 2);
+                var enAuth = new byte[4];
+                var enAuthParity = new byte[4];
+                for (int i = 0; i < 4; i++)
+                {
+                    enAuthParity[i] = Parity.OddParity8(abtAuthA[i]);
+                    enAuth[i] = (byte)(abtAuthA[i] ^ crapto1.Crypto1Byte());
+                    enAuthParity[i] ^= crapto1.PeekCrypto1Bit();
+                }
+                device.InitiatorTransceiveBits(enAuth, 32, enAuthParity, abtRx, MAX_FRAME_LEN, null);
+
+            }
+            // 開始Nested驗證的新crypto1密鑰
+            using (var crapto1 = new Crapto1(0xFFFFFFFFFFFFu))
+            {
+                Console.Write("     未解密Nt: ");
+                PrintHex(abtRx, 4);
+                var enNt = Crapto1Func.ToUInt32(abtRx);
+                // 初始化 crapto1 狀態 用加密的Nt，並解出明文nt
+                nt = enNt ^ crapto1.Crypto1Word(uid ^ enNt, true);
+                Console.Write("           Nt: ");
+                PrintHex(Crapto1Func.GetBytes(nt), 4);
+                // 自訂讀卡機端nonce
+                var nr = 0x01020304u;
+                // Ar 為 suc2(nt)
+                var ar = Crapto1Func.PrngSuccessor(nt, 64);
+                // 加密 Nr,suc2(Nt) 和 parity bit
+                var enNrAr = Crapto1Func.GetBytes(nr).Concat(Crapto1Func.GetBytes(ar)).ToArray();
+                var enNrArParity = new byte[8];
+                for (int i = 0; i < 8; i++)
+                {
+                    // 計算 Parity
+                    enNrArParity[i] = Parity.OddParity8(enNrAr[i]);
+                    // 加密, 0~3是Nr要帶入Crypto1位移
+                    enNrAr[i] ^= crapto1.Crypto1Byte(i < 4 ? enNrAr[i] : (byte)0);
+                    // 加密 Parity
+                    enNrArParity[i] ^= crapto1.PeekCrypto1Bit();
+                }
+                Console.Write("[Nr,suc2(Nt)]: ");
+                PrintHex(enNrAr, 8);
+                // 送出[Nr,suc2(Nt)]
                 var res = device.InitiatorTransceiveBits(enNrAr, 64, enNrArParity, abtRx, MAX_FRAME_LEN, null);
                 var enAt = new byte[4];
                 Array.Copy(abtRx, enAt, 4);
@@ -277,25 +356,13 @@ namespace NfcDotNet
                 // 解密[at]
                 var at = Crapto1Func.ToUInt32(enAt) ^ crapto1.Crypto1Word();
                 Console.WriteLine("At: {0:x8} == suc3(Nt):{1:x8}", at, Crapto1Func.PrngSuccessor(nt, 96));
-                // 讀取 Block 0
-                Nfc.Iso14443aCrcAppend(abtRead, 2);
-                var enAbtRead = new byte[4];
-                var enAbtReadParity = new byte[4];
-                for (int i = 0; i < 4; i++)
-                {
-                    enAbtReadParity[i] = Parity.OddParity8(abtRead[i]);
-                    enAbtRead[i] = (byte)(abtRead[i] ^ crapto1.Crypto1Byte());
-                    enAbtReadParity[i] ^= crapto1.PeekCrypto1Bit();
-                }
-                device.InitiatorTransceiveBits(enAbtRead, 32, enAbtReadParity, abtRx, MAX_FRAME_LEN, null);
-                var block = new byte[16];
-                for (int i = 0; i < 16; i++)
-                    block[i] = (byte)(abtRx[i] ^ crapto1.Crypto1Byte());
-                Console.Write("      Block 0: ");
-                PrintHex(block, 16);
+                // 讀取 Block
+                for (byte i = 4; i < 8; i++)
+                    ReadBlock(crapto1, i);
                 Console.WriteLine();
             }
-
+            
+            device.DeviceSetPropertyBool(NfcProperty.HandleParity, true);
             // Done, halt the tag now
             Nfc.Iso14443aCrcAppend(abtHalt, 2);
             TransmitBytes(abtHalt, 4);
