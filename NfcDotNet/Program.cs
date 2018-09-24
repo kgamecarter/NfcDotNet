@@ -232,9 +232,14 @@ namespace NfcDotNet
                         // 解密[at]
                         var at = Crapto1Func.ToUInt32(enAt) ^ crapto1.Crypto1Word();
                         Console.WriteLine("At: {0:x8} == suc3(Nt):{1:x8}", at, Crapto1Func.PrngSuccessor(nt, 96));
+
+                        // 寫入 Block4
+                        WriteBlock(crapto1, 4, new byte[16] { 65, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 });
+                        
                         // 讀取 Block
                         for (byte i = 4; i < 8; i++)
                             ReadBlock(crapto1, i);
+
                         Console.WriteLine();
                     }
 
@@ -277,6 +282,8 @@ namespace NfcDotNet
                 Console.Write(" ATS: ");
                 PrintHex(abtAts, szAts);
             }
+
+            Console.ReadLine();
         }
 
         static void ReadBlock(Crapto1 crapto1, byte b)
@@ -292,6 +299,43 @@ namespace NfcDotNet
                 block[i] = (byte)(abtRx[i] ^ crapto1.Crypto1Byte());
             Console.Write("      Block{0,2}: ", b);
             PrintHex(block, 16);
+        }
+
+        static void WriteBlock(Crapto1 crapto1, byte b, byte[] blockData)
+        {
+            var enWrite = new byte[4] { 0xA0, b, 0, 0 };
+            Nfc.Iso14443aCrcAppend(enWrite, 2);
+            var enWriteParity = new byte[4];
+            crapto1.Encrypt(enWrite, enWriteParity, 0, 4);
+            var resbits = device.InitiatorTransceiveBits(enWrite, 32, enWriteParity, abtRx, MAX_FRAME_LEN, null);
+            var res = 0;
+            for (int i = 0; i < 4; i++)
+                res |= ((abtRx[0] >> i) ^ crapto1.Crypto1Bit()) << i;
+            Console.WriteLine("Write Cmd : " + res.ToString("x2"));
+            if (res != 0x0A && res != 0x0E) // 0x0A ACK, 0x0E NAK
+                throw new Exception("Cmd Error: " + res.ToString("x2"));
+
+            var enBlock = new byte[18]; // 16byte data + 2byte crc
+            var enBlockParity = new byte[18];
+            if (blockData != null)
+                Array.Copy(blockData, enBlock, blockData.Length > 16 ? 16 : blockData.Length);
+            Nfc.Iso14443aCrcAppend(enBlock, 16);
+            Console.Write("Write Block{0,2}: ", b);
+            PrintHex(enBlock, 16);
+            crapto1.Encrypt(enBlock, enBlockParity, 0, 18);
+            resbits = device.InitiatorTransceiveBits(enBlock, 144, enBlockParity, abtRx, MAX_FRAME_LEN, null);
+            res = 0;
+            for (int i = 0; i < 4; i++)
+                res |= ((abtRx[0] >> i) ^ crapto1.Crypto1Bit()) << i;
+            Console.WriteLine("Write data: " + res.ToString("x2"));
+            if (res != 0x0A && res != 0x0E) // 0x0A ACK, 0x0E NAK
+                throw new Exception("Cmd Error: " + res.ToString("x2"));
+
+            //var enTransfer = new byte[4] { 0xB0, b, 0, 0 };
+            //Nfc.Iso14443aCrcAppend(enTransfer, 2);
+            //var enTransferParity = new byte[4];
+            //crapto1.Encrypt(enTransfer, enTransferParity, 0, 4);
+            //res = device.InitiatorTransceiveBits(enTransfer, 32, enTransferParity, abtRx, MAX_FRAME_LEN, null);
         }
 
         static bool quietOutput = false;
