@@ -1,5 +1,6 @@
 ﻿using NfcDotNet.LibCrapto1;
 using NfcDotNet.LibNfc;
+using NfcDotNet.Mifare;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -152,6 +153,19 @@ namespace NfcDotNet
                             szAts = (uint)szRx;
                         }
                     }
+                    /*
+                    MifareClassic mfc = new MifareClassic(device)
+                    {
+                        Uid = Crapto1Func.ToUInt32(abtRawUid)
+                    };
+                    mfc.Authentication(0, KeyType.KeyA, 0xFFFFFFFFFFFFu);
+                    var block0 = mfc.ReadBlock(0);
+                    PrintHex(block0, 16);
+                    mfc.Authentication(1, KeyType.KeyA, 0xFFFFFFFFFFFFu);
+                    mfc.WriteBlock(4, new byte[16] { 1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,0 });
+                    var block4 = mfc.ReadBlock(4);
+                    PrintHex(block4, 16);
+                    */
                     Console.WriteLine();
                     Console.WriteLine("驗證Block 0");
                     // 驗證 Block 0

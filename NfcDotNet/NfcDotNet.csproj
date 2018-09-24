@@ -51,6 +51,7 @@
     <Compile Include="LibNfc\NfcContext.cs" />
     <Compile Include="LibNfc\NfcDevice.cs" />
     <Compile Include="LibNfc\NfcProperty.cs" />
+    <Compile Include="Mifare\MifareClassic.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
