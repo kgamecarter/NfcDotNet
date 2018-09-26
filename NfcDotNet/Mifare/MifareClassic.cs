@@ -28,9 +28,39 @@ namespace NfcDotNet.Mifare
 
         public uint Uid { get; set; }
 
+        public byte Sak { get; set; }
+
         public MifareClassic(NfcDevice device)
         {
             Device = device;
+        }
+
+        public void InitialDevice()
+        {
+            // Initialise NFC device as "initiator"
+            Device.InitiatorInit();
+            // Configure the CRC
+            Device.DeviceSetPropertyBool(NfcProperty.HandleCrc, false);
+            // Use raw send/receive methods
+            Device.DeviceSetPropertyBool(NfcProperty.EasyFraming, false);
+            // Disable 14443-4 autoswitching
+            Device.DeviceSetPropertyBool(NfcProperty.AutoIso14443_4, false);
+        }
+
+        public bool SelectCard()
+        {
+            var reqa = new byte[1] { 0x26 };
+            Device.InitiatorTransceiveBits(reqa, 7, null, rxBuffer, MAX_FRAME_LEN, null);
+            var selectAll = new byte[2] { 0x93, 0x20 };
+            Device.InitiatorTransceiveBytes(selectAll, 2, rxBuffer, MAX_FRAME_LEN, 0);
+            if ((rxBuffer[0] ^ rxBuffer[1] ^ rxBuffer[2] ^ rxBuffer[3] ^ rxBuffer[4]) != 0)
+                return false;
+            Uid = Crapto1Func.ToUInt32(rxBuffer);
+            var selectTag = new byte[9] { 0x93, 0x70, rxBuffer[0], rxBuffer[1], rxBuffer[2], rxBuffer[3], rxBuffer[4], 0x00, 0x00 };
+            Nfc.Iso14443aCrcAppend(selectTag, 7);
+            Device.InitiatorTransceiveBytes(selectTag, 9, rxBuffer, MAX_FRAME_LEN, 0);
+            Sak = rxBuffer[0];
+            return true;
         }
 
         public void Authentication(byte sector, KeyType keyType, ulong key)
