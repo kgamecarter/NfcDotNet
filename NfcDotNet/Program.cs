@@ -29,8 +29,77 @@ namespace NfcDotNet
 
         static byte[] abtRx = new byte[MAX_FRAME_LEN];
 
+        static Random rnd = new Random();
+        static bool filterFunctionEx()
+        {
+            var s = new byte[]
+            {
+                0x00,
+                0x80,
+                0x20,
+                0xA0,
+                0x08,
+                0x88,
+                0x28,
+                0xA8,
+                0x02,
+                0x82,
+                0x22,
+                0xA2,
+                0x0A,
+                0x8A,
+                0x2A,
+                0xAA
+            };
+            var s2 = new byte[]
+            {
+                0x00,
+                0x02,
+                0x08,
+                0x0A,
+                0x20,
+                0x22,
+                0x28,
+                0x2A,
+                0x80,
+                0x82,
+                0x88,
+                0x8A,
+                0xA0,
+                0xA2,
+                0xA8,
+                0xAA,
+            };
+            ulong key = 0;
+            for (int i = 0; i < 5; i++)
+                key = key << 8 | (byte)rnd.Next(0xFF);
+            key <<= 8;
+            Console.WriteLine("0x{0:x10}", key);
+            for (int i = s.Length - 1; i >= 0; i--)
+                Console.Write("{0:x2} ", s[i]);
+            Console.WriteLine();
+            int sum = 0;
+            int fb = 0;
+            for (int i = s.Length - 1; i >= 0; i--)
+            {
+                using (var c = new Crapto1(key | (ulong)s[i]))
+                {
+                    fb = fb << 1| c.PeekCrypto1Bit();
+                    Console.Write(" {0} ", c.PeekCrypto1Bit());
+                    sum += c.PeekCrypto1Bit();
+                }
+            }
+            Console.WriteLine();
+            Console.WriteLine("0x{0:x4}", fb);
+            return sum != 0 && sum != 16;
+        }
+
         static void Main(string[] args)
         {
+            for (int i = 0; i < 100; i++)
+                filterFunctionEx();
+            Console.ReadLine();
+            return;
             byte[] abtRawUid = new byte[12];
             byte[] abtAtqa = new byte[2];
             byte abtSak = 0;
