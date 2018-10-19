@@ -1,6 +1,7 @@
 ﻿using Crapto1Sharp;
 using Crapto1Sharp.Extensions;
-using NfcDotNet.LibNfc;
+using ManagedLibnfc;
+using ManagedLibnfc.PInvoke;
 using NfcDotNet.Mifare;
 using System;
 using System.Collections.Generic;
@@ -75,10 +76,10 @@ namespace NfcDotNet
 
         static void Main(string[] args)
         {
-            for (int i = 0; i < 100; i++)
-                filterFunctionEx();
-            Console.ReadLine();
-            return;
+            //for (int i = 0; i < 100; i++)
+            //    filterFunctionEx();
+            //Console.ReadLine();
+            //return;
             byte[] abtRawUid = new byte[12];
             byte[] abtAtqa = new byte[2];
             byte abtSak = 0;
@@ -92,18 +93,18 @@ namespace NfcDotNet
                 using (var context = new NfcContext())
                 using (device = context.OpenDevice()) // Try to open the NFC reader
                 {
-                    MifareClassic mfc = new MifareClassic(device);
-                    mfc.InitialDevice();
-                    mfc.SelectCard();
-                    mfc.Authentication(0, KeyType.KeyA, 0xFFFFFFFFFFFFu);
-                    var block0 = mfc.ReadBlock(0);
-                    PrintHex(block0, 16);
-                    mfc.Authentication(1, KeyType.KeyA, 0xFFFFFFFFFFFFu);
-                    mfc.WriteBlock(4, new byte[16] { 1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
-                    var block4 = mfc.ReadBlock(4);
-                    PrintHex(block4, 16);
-                    Console.ReadLine();
-                    return;
+                    //MifareClassic mfc = new MifareClassic(device);
+                    //mfc.InitialDevice();
+                    //mfc.SelectCard();
+                    //mfc.Authentication(0, KeyType.KeyA, 0xFFFFFFFFFFFFu);
+                    //var block0 = mfc.ReadBlock(0);
+                    //PrintHex(block0, 16);
+                    //mfc.Authentication(1, KeyType.KeyA, 0xFFFFFFFFFFFFu);
+                    //mfc.WriteBlock(4, new byte[16] { 1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
+                    //var block4 = mfc.ReadBlock(4);
+                    //PrintHex(block4, 16);
+                    //Console.ReadLine();
+                    //return;
                     // Initialise NFC device as "initiator"
                     device.InitiatorInit();
                     // Configure the CRC
@@ -128,7 +129,7 @@ namespace NfcDotNet
 
                     //Prepare and send CL1 Select-Command
                     Array.Copy(abtRx, 0, abtSelectTag, 2, 5);
-                    Nfc.Iso14443aCrcAppend(abtSelectTag, 7);
+                    Libnfc.Iso14443aCrcAppend(abtSelectTag, 7);
                     TransmitBytes(abtSelectTag, 9);
                     abtSak = abtRx[0];
 
@@ -162,7 +163,7 @@ namespace NfcDotNet
                         // Selection
                         abtSelectTag[0] = 0x95;
                         Array.Copy(abtRx, 0, abtSelectTag, 2, 5);
-                        Nfc.Iso14443aCrcAppend(abtSelectTag, 7);
+                        Libnfc.Iso14443aCrcAppend(abtSelectTag, 7);
                         TransmitBytes(abtSelectTag, 9);
                         abtSak = abtRx[0];
 
@@ -193,7 +194,7 @@ namespace NfcDotNet
                             // Prepare and send final Select-Command
                             abtSelectTag[0] = 0x97;
                             Array.Copy(abtRx, 0, abtSelectTag, 2, 5);
-                            Nfc.Iso14443aCrcAppend(abtSelectTag, 7);
+                            Libnfc.Iso14443aCrcAppend(abtSelectTag, 7);
                             TransmitBytes(abtSelectTag, 9);
                             abtSak = abtRx[0];
                         }
@@ -205,7 +206,7 @@ namespace NfcDotNet
                         isoAtsSupported = true;
                     if ((abtRx[0] & SAK_FLAG_ATS_SUPPORTED) != 0 || forceRats)
                     {
-                        Nfc.Iso14443aCrcAppend(abtRats, 2);
+                        Libnfc.Iso14443aCrcAppend(abtRats, 2);
                         int szRx = TransmitBytes(abtRats, 4);
                         if (szRx >= 0)
                         {
@@ -217,7 +218,7 @@ namespace NfcDotNet
                     Console.WriteLine();
                     Console.WriteLine("驗證Block 0");
                     // 驗證 Block 0
-                    Nfc.Iso14443aCrcAppend(abtAuthA, 2);
+                    Libnfc.Iso14443aCrcAppend(abtAuthA, 2);
                     TransmitBytes(abtAuthA, 4);
                     // 自己控制 Parity bit
                     device.DeviceSetPropertyBool(NfcProperty.HandleParity, false);
@@ -256,7 +257,7 @@ namespace NfcDotNet
                     Console.WriteLine("Nested驗證 Block 4");
                     // Nested驗證 Block 4
                     abtAuthA[1] = 4;
-                    Nfc.Iso14443aCrcAppend(abtAuthA, 2);
+                    Libnfc.Iso14443aCrcAppend(abtAuthA, 2);
                     var enAuth = abtAuthA.ToArray();
                     var enAuthParity = new byte[4];
                     crapto1.Encrypt(enAuth, enAuthParity, 0, 4);
@@ -303,7 +304,7 @@ namespace NfcDotNet
 
                     // device.DeviceSetPropertyBool(NfcProperty.HandleParity, true);
                     // Done, halt the tag now
-                    Nfc.Iso14443aCrcAppend(abtHalt, 2);
+                    Libnfc.Iso14443aCrcAppend(abtHalt, 2);
                     TransmitBytes(abtHalt, 4);
                 }
             }
@@ -347,7 +348,7 @@ namespace NfcDotNet
         static void ReadBlock(Crypto1 crapto1, byte b)
         {
             abtRead[1] = b;
-            Nfc.Iso14443aCrcAppend(abtRead, 2);
+            Libnfc.Iso14443aCrcAppend(abtRead, 2);
             var enAbtRead = abtRead.ToArray();
             var enAbtReadParity = new byte[4];
             crapto1.Encrypt(enAbtRead, enAbtReadParity, 0, 4);
@@ -362,7 +363,7 @@ namespace NfcDotNet
         static void WriteBlock(Crypto1 crapto1, byte b, byte[] blockData)
         {
             var enWrite = new byte[4] { 0xA0, b, 0, 0 };
-            Nfc.Iso14443aCrcAppend(enWrite, 2);
+            Libnfc.Iso14443aCrcAppend(enWrite, 2);
             var enWriteParity = new byte[4];
             crapto1.Encrypt(enWrite, enWriteParity, 0, 4);
             var resbits = device.InitiatorTransceiveBits(enWrite, 32, enWriteParity, abtRx, MAX_FRAME_LEN, null);
@@ -377,7 +378,7 @@ namespace NfcDotNet
             var enBlockParity = new byte[18];
             if (blockData != null)
                 Array.Copy(blockData, enBlock, blockData.Length > 16 ? 16 : blockData.Length);
-            Nfc.Iso14443aCrcAppend(enBlock, 16);
+            Libnfc.Iso14443aCrcAppend(enBlock, 16);
             Console.Write("Write Block{0,2}: ", b);
             PrintHex(enBlock, 16);
             crapto1.Encrypt(enBlock, enBlockParity, 0, 18);
