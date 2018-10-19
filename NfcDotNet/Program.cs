@@ -30,56 +30,9 @@ namespace NfcDotNet
         const byte SAK_FLAG_ATS_SUPPORTED = 0x20;
 
         static byte[] abtRx = new byte[MAX_FRAME_LEN];
-
-        static Random rnd = new Random();
-        static int filterFunctionEx()
-        {
-            var s = new byte[]
-            {
-                0x00,
-                0x80,
-                0x20,
-                0xA0,
-                0x08,
-                0x88,
-                0x28,
-                0xA8,
-                0x02,
-                0x82,
-                0x22,
-                0xA2,
-                0x0A,
-                0x8A,
-                0x2A,
-                0xAA
-            };
-            ulong key = 0;
-            for (int i = 0; i < 5; i++)
-                key = key << 8 | (byte)rnd.Next(0xFF);
-            key <<= 8;
-            Console.WriteLine("0x{0:x10}", key);
-            for (int i = s.Length - 1; i >= 0; i--)
-                Console.Write("{0:x2} ", s[i]);
-            Console.WriteLine();
-            int fb = 0;
-            for (int i = s.Length - 1; i >= 0; i--)
-            {
-                var c = new Crypto1(key | (ulong)s[i]);
-                var ks = c.PeekCrypto1Bit();
-                fb = fb << 1 | ks;
-                Console.Write(" {0} ", ks);
-            }
-            Console.WriteLine();
-            Console.WriteLine("0x{0:x4}", fb);
-            return fb;
-        }
-
+        
         static void Main(string[] args)
         {
-            //for (int i = 0; i < 100; i++)
-            //    filterFunctionEx();
-            //Console.ReadLine();
-            //return;
             byte[] abtRawUid = new byte[12];
             byte[] abtAtqa = new byte[2];
             byte abtSak = 0;
@@ -93,18 +46,6 @@ namespace NfcDotNet
                 using (var context = new NfcContext())
                 using (device = context.OpenDevice()) // Try to open the NFC reader
                 {
-                    //MifareClassic mfc = new MifareClassic(device);
-                    //mfc.InitialDevice();
-                    //mfc.SelectCard();
-                    //mfc.Authentication(0, KeyType.KeyA, 0xFFFFFFFFFFFFu);
-                    //var block0 = mfc.ReadBlock(0);
-                    //PrintHex(block0, 16);
-                    //mfc.Authentication(1, KeyType.KeyA, 0xFFFFFFFFFFFFu);
-                    //mfc.WriteBlock(4, new byte[16] { 1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
-                    //var block4 = mfc.ReadBlock(4);
-                    //PrintHex(block4, 16);
-                    //Console.ReadLine();
-                    //return;
                     // Initialise NFC device as "initiator"
                     device.InitiatorInit();
                     // Configure the CRC
@@ -469,7 +410,7 @@ namespace NfcDotNet
             return szRx;
         }
 
-        static void PrintHexBits(byte[] data, uint szBits)
+        public static void PrintHexBits(byte[] data, uint szBits)
         {
             uint uRemainder;
             uint szBytes = szBits / 8;
@@ -489,7 +430,7 @@ namespace NfcDotNet
             Console.WriteLine();
         }
 
-        static void PrintHex(byte[] pbtData, uint szBytes)
+        public static void PrintHex(byte[] pbtData, uint szBytes)
         {
             for (uint i = 0; i < szBytes; i++)
                 Console.Write("{0:x2}  ", pbtData[i]);
