@@ -4,6 +4,7 @@ using ManagedLibnfc;
 using NfcDotNet.Mifare;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -36,6 +37,12 @@ namespace NfcDotNet
         
         static void Main(string[] args)
         {
+            Stopwatch sw = Stopwatch.StartNew();
+            var keyMap = Test.KeyMap("keys.txt");
+            sw.Stop();
+            WriteLine(sw.ElapsedMilliseconds);
+            ReadLine();
+            return;
             byte[] abtRawUid = new byte[12];
             byte[] abtAtqa = new byte[2];
             byte abtSak = 0;

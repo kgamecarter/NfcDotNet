@@ -3,6 +3,7 @@ using ManagedLibnfc;
 using NfcDotNet.Mifare;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -56,7 +57,6 @@ namespace NfcDotNet
 
         public static void MifareTest()
         {
-
             using (var context = new NfcContext())
             using (var device = context.OpenDevice()) // Try to open the NFC reader
             {
@@ -72,6 +72,46 @@ namespace NfcDotNet
                 Program.PrintHex(block4, 16);
                 Console.ReadLine();
             }
+        }
+
+        public static Dictionary<(byte, KeyType), ulong?> KeyMap(string path)
+        {
+            var keys = File.ReadAllLines(path)
+                .Where(line => !String.IsNullOrEmpty(line))
+                .Select(line => Convert.ToUInt64(line.Trim(), 16))
+                .ToArray();
+            var dic = new Dictionary<(byte, KeyType), ulong?>();
+            using (var context = new NfcContext())
+            using (var device = context.OpenDevice()) // Try to open the NFC reader
+            {
+                MifareClassic mfc = new MifareClassic(device);
+                mfc.InitialDevice();
+                for (byte i = 0; i < 16; i++)
+                {
+                    for (int j = 0; j < 2; j++)
+                    {
+                        var type = (KeyType)j;
+                        var skip = i * 2 + j;
+                        foreach (var key in keys.Skip(skip).Concat(keys.Take(skip)))
+                        {
+                            try
+                            {
+                                if (mfc.Uid == null)
+                                    mfc.SelectCard();
+                                dic[(i, type)] = null;
+                                if (mfc.Authentication(i, type, key))
+                                {
+                                    dic[(i, type)] = key;
+                                    break;
+                                }
+                            }
+                            catch
+                            { }
+                        }
+                    }
+                }
+            }
+            return dic;
         }
     }
 }

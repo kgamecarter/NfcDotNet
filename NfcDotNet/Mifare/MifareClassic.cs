@@ -30,7 +30,7 @@ namespace NfcDotNet.Mifare
 
         public NfcDevice Device { get; set; }
 
-        public uint Uid { get; set; }
+        public uint? Uid { get; set; }
 
         public byte Sak { get; set; }
 
@@ -67,7 +67,7 @@ namespace NfcDotNet.Mifare
             return true;
         }
 
-        public void Authentication(byte sector, KeyType keyType, ulong key)
+        public bool Authentication(byte sector, KeyType keyType, ulong key)
         {
             var auth = new byte[4]
             {
@@ -80,10 +80,10 @@ namespace NfcDotNet.Mifare
             if (Crypto1 == null) // 初次驗證
             {
                 Device.DeviceSetPropertyBool(NfcProperty.HandleParity, true);
-                Device.InitiatorTransceiveBytes(auth, 4, rxBuffer, MAX_FRAME_LEN, 0);
+                int r1 = Device.InitiatorTransceiveBytes(auth, 4, rxBuffer, MAX_FRAME_LEN, 0);
                 Device.DeviceSetPropertyBool(NfcProperty.HandleParity, false);
                 nt = rxBuffer.ToUInt32();
-                crapto1.Crypto1Word(Uid ^ nt);
+                crapto1.Crypto1Word(Uid.Value ^ nt);
             }
             else // Nested 驗證
             {
@@ -91,7 +91,7 @@ namespace NfcDotNet.Mifare
                 Crypto1.Encrypt(auth, authParity, 0, 4);
                 Device.InitiatorTransceiveBits(auth, 32, authParity, rxBuffer, MAX_FRAME_LEN, null);
                 nt = rxBuffer.ToUInt32();
-                nt = nt ^ crapto1.Crypto1Word(Uid ^ nt, true);
+                nt = nt ^ crapto1.Crypto1Word(Uid.Value ^ nt, true);
                 Crypto1 = null;
             }
             var nr = 0x01020304u;
@@ -100,12 +100,16 @@ namespace NfcDotNet.Mifare
             var enNrArParity = new byte[8];
             crapto1.Encrypt(enNrAr, enNrArParity, 0, 4, true);
             crapto1.Encrypt(enNrAr, enNrArParity, 4, 4);
-            Device.InitiatorTransceiveBits(enNrAr, 64, enNrArParity, rxBuffer, MAX_FRAME_LEN, null);
+            int r = Device.InitiatorTransceiveBits(enNrAr, 64, enNrArParity, rxBuffer, MAX_FRAME_LEN, null);
             var at = rxBuffer.ToUInt32() ^ crapto1.Crypto1Word();
             if (at != PrngSuccessor(nt, 96))
-                throw new Exception("At error");
+            {
+                Halt();
+                return false;
+            }
             Crypto1 = crapto1;
             _sector = sector;
+            return true;
         }
 
         public byte[] ReadBlock(byte b)
@@ -149,6 +153,16 @@ namespace NfcDotNet.Mifare
                 res |= ((rxBuffer[0] >> i) ^ Crypto1.Crypto1Bit()) << i;
             if (res != 0x0A && res != 0x0E) // 0x0A ACK, 0x0E NAK
                 throw new Exception("Cmd Error: " + res.ToString("x2"));
+        }
+
+        public void Halt()
+        {
+            Uid = null;
+            Device.DeviceSetPropertyBool(NfcProperty.HandleParity, true);
+            // Done, halt the tag now
+            var halt = new byte[4] { 0x50, 0x00, 0x00, 0x00 };
+            Iso14443aCrcAppend(halt, 2);
+            Device.InitiatorTransceiveBytes(halt, 4, rxBuffer, MAX_FRAME_LEN, 0);
         }
     }
 
