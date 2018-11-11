@@ -38,8 +38,14 @@ namespace NfcDotNet
         static void Main(string[] args)
         {
             Stopwatch sw = Stopwatch.StartNew();
-            var keyMap = Test.KeyMap("keys.txt");
+            var (keyMap, dump) = Test.KeyMapDump("keys.txt");
             sw.Stop();
+            for (int i = 0; i < 16; i++)
+            {
+                WriteLine("Sector {0}:", i);
+                for (int j = 0; j < 4; j++)
+                    PrintHex(dump[i * 4 + j], 16);
+            }
             WriteLine(sw.ElapsedMilliseconds);
             ReadLine();
             return;

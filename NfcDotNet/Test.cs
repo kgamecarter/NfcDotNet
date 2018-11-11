@@ -1,4 +1,5 @@
 ﻿using Crapto1Sharp;
+using Crapto1Sharp.Extensions;
 using ManagedLibnfc;
 using NfcDotNet.Mifare;
 using System;
@@ -74,12 +75,13 @@ namespace NfcDotNet
             }
         }
 
-        public static Dictionary<(byte, KeyType), ulong?> KeyMap(string path)
+        public static (Dictionary<(byte, KeyType), ulong?>, byte[][]) KeyMapDump(string path)
         {
             var keys = File.ReadAllLines(path)
-                .Where(line => !String.IsNullOrEmpty(line))
+                .Where(line => !string.IsNullOrEmpty(line))
                 .Select(line => Convert.ToUInt64(line.Trim(), 16))
                 .ToArray();
+            var data = new byte[64][];
             var dic = new Dictionary<(byte, KeyType), ulong?>();
             using (var context = new NfcContext())
             using (var device = context.OpenDevice()) // Try to open the NFC reader
@@ -102,6 +104,21 @@ namespace NfcDotNet
                                 if (mfc.Authentication(i, type, key))
                                 {
                                     dic[(i, type)] = key;
+                                    for (int k = 0; k < 4; k++)
+                                    {
+                                        var block = (byte)(i * 4 + k);
+                                        if (data[block] == null)
+                                            data[block] = mfc.ReadBlock(block);
+                                    }
+                                    var keyBlock = i * 4 + 3;
+                                    if (data[keyBlock] != null)
+                                    {
+                                        var offset = 5;
+                                        if (type == KeyType.KeyB)
+                                            offset = 15;
+                                        for (int k = 0; k < 6; k++)
+                                            data[keyBlock][offset - k] = (byte)(key >> (k * 8));
+                                    }
                                     break;
                                 }
                             }
@@ -111,7 +128,7 @@ namespace NfcDotNet
                     }
                 }
             }
-            return dic;
+            return (dic, data);
         }
     }
 }
