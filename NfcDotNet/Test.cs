@@ -110,15 +110,6 @@ namespace NfcDotNet
                                         if (data[block] == null)
                                             data[block] = mfc.ReadBlock(block);
                                     }
-                                    var keyBlock = i * 4 + 3;
-                                    if (data[keyBlock] != null)
-                                    {
-                                        var offset = 5;
-                                        if (type == KeyType.KeyB)
-                                            offset = 15;
-                                        for (int k = 0; k < 6; k++)
-                                            data[keyBlock][offset - k] = (byte)(key >> (k * 8));
-                                    }
                                     break;
                                 }
                             }
@@ -127,6 +118,24 @@ namespace NfcDotNet
                         }
                     }
                 }
+                for (byte i = 0; i < 16; i++)
+                {
+                    for (int j = 0; j < 2; j++)
+                    {
+                        var type = (KeyType)j;
+                        var key = dic[(i, type)];
+                        var keyBlock = i * 4 + 3;
+                        if (data[keyBlock] != null)
+                        {
+                            var offset = 5;
+                            if (type == KeyType.KeyB)
+                                offset = 15;
+                            for (int k = 0; k < 6; k++)
+                                data[keyBlock][offset - k] = (byte)(key >> (k * 8));
+                        }
+                    }
+                }
+
             }
             return (dic, data);
         }
